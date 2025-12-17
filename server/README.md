@@ -12,6 +12,28 @@ This comprehensive cheat sheet provides common Mongoose operations in controller
 - [Query Operations](#query-operations)
 - [Advanced Operations](#advanced-operations)
 - [Summary Table](#summary-table)
+- [Query Operators Reference](#query-operators-reference)
+- [Best Practices](#best-practices)
+- [Common Patterns](#common-patterns)
+- [Express Routes Cheat Sheet](#express-routes-cheat-sheet)
+  - [URL Parameters](#url-parameters-reqparams)
+  - [Query Strings](#query-strings-reqquery)
+  - [Request Body](#request-body-reqbody)
+  - [Request Headers](#request-headers-reqheaders)
+  - [Complete Route Examples](#complete-route-examples)
+  - [Route Parameters Summary](#route-parameters-summary)
+- [Mongoose Model Schema Cheat Sheet](#mongoose-model-schema-cheat-sheet)
+  - [Basic Schema Structure](#basic-schema-structure)
+  - [Data Types](#data-types)
+  - [Validation Options](#validation-options)
+  - [Schema Options](#schema-options)
+  - [Indexes](#indexes)
+  - [Virtual Properties](#virtual-properties)
+  - [Instance Methods](#instance-methods)
+  - [Static Methods](#static-methods)
+  - [Middleware (Hooks)](#middleware-hooks)
+  - [Complete Schema Example](#complete-schema-example)
+  - [Schema Data Types Summary](#schema-data-types-summary)
 
 ---
 
@@ -778,5 +800,886 @@ const activeUsers = await User.find({ isDeleted: false });
 **Tip:**  
 Replace `User` with your model name as needed.  
 Use `req.body`, `req.params`, or `req.query` for input from the client.
+
+---
+
+## Express Routes Cheat Sheet
+
+This section covers how to handle different types of data in Express routes: URL parameters, query strings, and request bodies.
+
+### URL Parameters (req.params)
+Data embedded in the URL path.
+
+**Route Definition:**
+```javascript
+router.get('/users/:id', getUserById);
+router.get('/users/:userId/posts/:postId', getPostByUser);
+```
+
+**Accessing Parameters:**
+```javascript
+const getUserById = async (req, res) => {
+  const userId = req.params.id;
+  // URL: /users/123 → userId = "123"
+  
+  const user = await User.findById(userId);
+  res.json({ success: true, data: user });
+};
+
+const getPostByUser = async (req, res) => {
+  const { userId, postId } = req.params;
+  // URL: /users/123/posts/456 → userId = "123", postId = "456"
+  
+  res.json({ userId, postId });
+};
+```
+
+**When to use:**
+- Required data that identifies a resource
+- RESTful API design (e.g., `/users/:id`, `/posts/:postId`)
+
+---
+
+### Query Strings (req.query)
+Data passed in the URL after `?` (optional parameters).
+
+**URL Examples:**
+```
+/users?page=2&limit=10
+/users?search=john&gender=male&minAge=18
+/products?category=electronics&sort=price&order=asc
+```
+
+**Accessing Query Parameters:**
+```javascript
+const getAllUsers = async (req, res) => {
+  // Extract query parameters
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const search = req.query.search;
+  const gender = req.query.gender;
+  
+  // Build filter object
+  const filter = {};
+  if (search) filter.name = new RegExp(search, 'i'); // Case-insensitive search
+  if (gender) filter.gender = gender;
+  
+  // Execute query
+  const users = await User.find(filter)
+    .limit(limit)
+    .skip((page - 1) * limit);
+  
+  res.json({ success: true, data: users });
+};
+```
+
+**Common Patterns:**
+
+**Pagination:**
+```javascript
+const page = parseInt(req.query.page) || 1;
+const limit = parseInt(req.query.limit) || 10;
+const skip = (page - 1) * limit;
+
+const users = await User.find().skip(skip).limit(limit);
+```
+
+**Sorting:**
+```javascript
+const sortBy = req.query.sortBy || 'createdAt';
+const order = req.query.order === 'asc' ? 1 : -1;
+
+const users = await User.find().sort({ [sortBy]: order });
+```
+
+**Filtering:**
+```javascript
+const { gender, minAge, maxAge, status } = req.query;
+
+const filter = {};
+if (gender) filter.gender = gender;
+if (status) filter.status = status;
+if (minAge || maxAge) {
+  filter.age = {};
+  if (minAge) filter.age.$gte = parseInt(minAge);
+  if (maxAge) filter.age.$lte = parseInt(maxAge);
+}
+
+const users = await User.find(filter);
+```
+
+**Search:**
+```javascript
+const search = req.query.search;
+
+const filter = search 
+  ? { $or: [
+      { firstName: new RegExp(search, 'i') },
+      { lastName: new RegExp(search, 'i') },
+      { email: new RegExp(search, 'i') }
+    ]}
+  : {};
+
+const users = await User.find(filter);
+```
+
+**When to use:**
+- Optional parameters
+- Filtering, sorting, pagination
+- Search queries
+
+---
+
+### Request Body (req.body)
+Data sent in the HTTP request body (POST, PUT, PATCH).
+
+**Accessing Body Data:**
+```javascript
+const createUser = async (req, res) => {
+  // Extract entire body
+  const userData = req.body;
+  
+  // Or extract specific fields
+  const { firstName, lastName, email, age } = req.body;
+  
+  const user = await User.create(userData);
+  res.status(201).json({ success: true, data: user });
+};
+
+const updateUser = async (req, res) => {
+  const userId = req.params.id;
+  const updates = req.body;
+  
+  const user = await User.findByIdAndUpdate(userId, updates, { new: true });
+  res.json({ success: true, data: user });
+};
+```
+
+**Client sends (JSON):**
+```json
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@example.com",
+  "age": 25
+}
+```
+
+**When to use:**
+- Creating resources (POST)
+- Updating resources (PUT, PATCH)
+- Complex data structures
+
+---
+
+### Request Headers (req.headers)
+Metadata about the request.
+
+**Accessing Headers:**
+```javascript
+const getProfile = async (req, res) => {
+  // Get authorization token
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  // Get content type
+  const contentType = req.headers['content-type'];
+  
+  // Custom headers
+  const apiKey = req.headers['x-api-key'];
+  
+  res.json({ token, contentType, apiKey });
+};
+```
+
+**Common Headers:**
+- `authorization` - Authentication tokens
+- `content-type` - Data format (application/json)
+- `accept` - Expected response format
+- `user-agent` - Client information
+
+---
+
+### Complete Route Examples
+
+**GET with Query Parameters:**
+```javascript
+// Route: GET /api/users?page=1&limit=10&gender=male&search=john
+router.get('/users', async (req, res) => {
+  try {
+    const { page = 1, limit = 10, gender, search } = req.query;
+    
+    const filter = {};
+    if (gender) filter.gender = gender;
+    if (search) filter.name = new RegExp(search, 'i');
+    
+    const users = await User.find(filter)
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+    
+    const total = await User.countDocuments(filter);
+    
+    res.json({
+      success: true,
+      data: users,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+```
+
+**GET with URL Parameter:**
+```javascript
+// Route: GET /api/users/:id
+router.get('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+```
+
+**POST with Request Body:**
+```javascript
+// Route: POST /api/users
+router.post('/users', async (req, res) => {
+  try {
+    const user = await User.create(req.body);
+    res.status(201).json({ success: true, data: user });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+```
+
+**PUT with URL Parameter and Body:**
+```javascript
+// Route: PUT /api/users/:id
+router.put('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, data: user });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+```
+
+**DELETE with URL Parameter:**
+```javascript
+// Route: DELETE /api/users/:id
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, message: 'User deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+```
+
+---
+
+### Route Parameters Summary
+
+| Type          | Location         | Access Method  | Use Case                           |
+|---------------|------------------|----------------|------------------------------------|
+| URL Params    | URL path         | `req.params`   | Resource identification            |
+| Query String  | URL after `?`    | `req.query`    | Optional filters, pagination       |
+| Request Body  | HTTP body        | `req.body`     | Creating/updating resources        |
+| Headers       | HTTP headers     | `req.headers`  | Authentication, metadata           |
+
+---
+
+## Mongoose Model Schema Cheat Sheet
+
+This section covers how to define Mongoose schemas with various data types, validations, and options.
+
+### Basic Schema Structure
+
+```javascript
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema(
+  {
+    // Field definitions go here
+  },
+  {
+    // Schema options go here
+    timestamps: true
+  }
+);
+
+module.exports = mongoose.model('User', userSchema);
+```
+
+---
+
+### Data Types
+
+**String:**
+```javascript
+name: {
+  type: String,
+  required: true,
+  trim: true,
+  lowercase: true, // Convert to lowercase
+  uppercase: true, // Convert to uppercase
+  minlength: 2,
+  maxlength: 50,
+  match: /^[A-Za-z]+$/, // Regex validation
+  enum: ['active', 'inactive'], // Only allow these values
+  default: 'active'
+}
+```
+
+**Number:**
+```javascript
+age: {
+  type: Number,
+  required: true,
+  min: 0,
+  max: 120,
+  default: 18
+}
+```
+
+**Boolean:**
+```javascript
+isActive: {
+  type: Boolean,
+  default: true
+}
+```
+
+**Date:**
+```javascript
+birthDate: {
+  type: Date,
+  required: true,
+  default: Date.now
+}
+```
+
+**Array of Strings:**
+```javascript
+tags: {
+  type: [String],
+  default: []
+}
+```
+
+**Array of Numbers:**
+```javascript
+scores: {
+  type: [Number],
+  validate: {
+    validator: function(arr) {
+      return arr.length <= 10;
+    },
+    message: 'Cannot have more than 10 scores'
+  }
+}
+```
+
+**Array of Objects:**
+```javascript
+addresses: [{
+  street: String,
+  city: String,
+  zipCode: String,
+  isDefault: { type: Boolean, default: false }
+}]
+```
+
+**Nested Object:**
+```javascript
+profile: {
+  bio: String,
+  avatar: String,
+  social: {
+    twitter: String,
+    linkedin: String
+  }
+}
+```
+
+**ObjectId (Reference):**
+```javascript
+createdBy: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User',
+  required: true
+}
+```
+
+**Mixed (Any Type):**
+```javascript
+metadata: {
+  type: mongoose.Schema.Types.Mixed
+}
+```
+
+**Buffer (Binary Data):**
+```javascript
+image: {
+  type: Buffer
+}
+```
+
+---
+
+### Validation Options
+
+**Required:**
+```javascript
+email: {
+  type: String,
+  required: true,
+  required: [true, 'Email is required'] // Custom error message
+}
+```
+
+**Unique:**
+```javascript
+email: {
+  type: String,
+  unique: true
+}
+```
+
+**Enum (Specific Values Only):**
+```javascript
+role: {
+  type: String,
+  enum: ['user', 'admin', 'moderator'],
+  enum: {
+    values: ['user', 'admin', 'moderator'],
+    message: '{VALUE} is not a valid role'
+  }
+}
+```
+
+**Min/Max Length:**
+```javascript
+username: {
+  type: String,
+  minlength: [3, 'Username must be at least 3 characters'],
+  maxlength: [20, 'Username cannot exceed 20 characters']
+}
+```
+
+**Min/Max (Numbers):**
+```javascript
+age: {
+  type: Number,
+  min: [0, 'Age cannot be negative'],
+  max: [120, 'Age cannot exceed 120']
+}
+```
+
+**Match (Regex):**
+```javascript
+email: {
+  type: String,
+  match: [/^\w+@[a-zA-Z_]+?\.[a-zA-Z]{2,3}$/, 'Please enter a valid email']
+}
+```
+
+**Custom Validation:**
+```javascript
+age: {
+  type: Number,
+  validate: {
+    validator: function(value) {
+      return value >= 18;
+    },
+    message: 'Must be 18 or older'
+  }
+}
+```
+
+**Async Validation:**
+```javascript
+email: {
+  type: String,
+  validate: {
+    validator: async function(value) {
+      const user = await mongoose.models.User.findOne({ email: value });
+      return !user;
+    },
+    message: 'Email already exists'
+  }
+}
+```
+
+---
+
+### Schema Options
+
+**Timestamps:**
+```javascript
+const userSchema = new mongoose.Schema({
+  name: String
+}, {
+  timestamps: true // Adds createdAt and updatedAt
+});
+```
+
+**Custom Timestamp Field Names:**
+```javascript
+const userSchema = new mongoose.Schema({
+  name: String
+}, {
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+});
+```
+
+**Disable _id:**
+```javascript
+const subSchema = new mongoose.Schema({
+  field: String
+}, {
+  _id: false
+});
+```
+
+**toJSON Options:**
+```javascript
+const userSchema = new mongoose.Schema({
+  name: String,
+  password: String
+}, {
+  toJSON: {
+    virtuals: true, // Include virtual properties
+    transform: function(doc, ret) {
+      delete ret.password; // Remove password from JSON
+      return ret;
+    }
+  }
+});
+```
+
+---
+
+### Indexes
+
+**Single Field Index:**
+```javascript
+userSchema.index({ email: 1 }); // Ascending
+userSchema.index({ age: -1 }); // Descending
+```
+
+**Compound Index:**
+```javascript
+userSchema.index({ firstName: 1, lastName: 1 });
+```
+
+**Unique Index:**
+```javascript
+userSchema.index({ email: 1 }, { unique: true });
+```
+
+**Text Index (for search):**
+```javascript
+userSchema.index({ name: 'text', bio: 'text' });
+```
+
+---
+
+### Virtual Properties
+
+**Computed Fields (not stored in DB):**
+```javascript
+userSchema.virtual('fullName').get(function() {
+  return `${this.firstName} ${this.lastName}`;
+});
+
+// Usage:
+const user = await User.findById(id);
+console.log(user.fullName); // "John Doe"
+```
+
+**Virtual with Setter:**
+```javascript
+userSchema.virtual('fullName')
+  .get(function() {
+    return `${this.firstName} ${this.lastName}`;
+  })
+  .set(function(value) {
+    const parts = value.split(' ');
+    this.firstName = parts[0];
+    this.lastName = parts[1];
+  });
+```
+
+---
+
+### Instance Methods
+
+**Methods available on individual documents:**
+```javascript
+userSchema.methods.getPublicProfile = function() {
+  return {
+    id: this._id,
+    name: this.name,
+    email: this.email
+  };
+};
+
+// Usage:
+const user = await User.findById(id);
+const profile = user.getPublicProfile();
+```
+
+**Async Instance Method:**
+```javascript
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+```
+
+---
+
+### Static Methods
+
+**Methods available on the Model:**
+```javascript
+userSchema.statics.findByEmail = function(email) {
+  return this.findOne({ email });
+};
+
+// Usage:
+const user = await User.findByEmail('john@example.com');
+```
+
+**Static with Parameters:**
+```javascript
+userSchema.statics.findActive = function() {
+  return this.find({ isActive: true });
+};
+
+userSchema.statics.findByAgeRange = function(min, max) {
+  return this.find({ age: { $gte: min, $lte: max } });
+};
+```
+
+---
+
+### Middleware (Hooks)
+
+**Pre Save:**
+```javascript
+// Runs before saving
+userSchema.pre('save', async function(next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
+});
+```
+
+**Post Save:**
+```javascript
+// Runs after saving
+userSchema.post('save', function(doc) {
+  console.log(`User ${doc.name} was saved`);
+});
+```
+
+**Pre Remove:**
+```javascript
+userSchema.pre('remove', async function(next) {
+  // Delete user's posts when user is deleted
+  await Post.deleteMany({ author: this._id });
+  next();
+});
+```
+
+**Pre Find:**
+```javascript
+// Runs before any find query
+userSchema.pre('find', function() {
+  this.where({ isDeleted: false }); // Auto-filter deleted users
+});
+```
+
+---
+
+### Complete Schema Example
+
+```javascript
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+
+const userSchema = new mongoose.Schema(
+  {
+    // Basic Info
+    firstName: {
+      type: String,
+      required: [true, 'First name is required'],
+      trim: true,
+      minlength: 2,
+      maxlength: 50
+    },
+    lastName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      match: [/^\w+@[a-zA-Z_]+?\.[a-zA-Z]{2,3}$/, 'Please enter valid email']
+    },
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+      select: false // Don't include in queries by default
+    },
+    
+    // Profile
+    age: {
+      type: Number,
+      min: 0,
+      max: 120
+    },
+    gender: {
+      type: String,
+      enum: ['male', 'female', 'other']
+    },
+    bio: {
+      type: String,
+      maxlength: 500
+    },
+    
+    // Arrays
+    tags: [String],
+    skills: [{
+      name: String,
+      level: {
+        type: String,
+        enum: ['beginner', 'intermediate', 'advanced']
+      }
+    }],
+    
+    // References
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    
+    // Status
+    role: {
+      type: String,
+      enum: ['user', 'admin', 'moderator'],
+      default: 'user'
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false
+    },
+    deletedAt: Date
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
+);
+
+// Indexes
+userSchema.index({ email: 1 });
+userSchema.index({ firstName: 'text', lastName: 'text' });
+
+// Virtual
+userSchema.virtual('fullName').get(function() {
+  return `${this.firstName} ${this.lastName}`;
+});
+
+// Instance Methods
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+userSchema.methods.getPublicProfile = function() {
+  return {
+    id: this._id,
+    name: this.fullName,
+    email: this.email,
+    role: this.role
+  };
+};
+
+// Static Methods
+userSchema.statics.findByEmail = function(email) {
+  return this.findOne({ email }).select('+password');
+};
+
+userSchema.statics.findActive = function() {
+  return this.find({ isActive: true, isDeleted: false });
+};
+
+// Middleware
+userSchema.pre('save', async function(next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
+});
+
+userSchema.pre('find', function() {
+  this.where({ isDeleted: false });
+});
+
+module.exports = mongoose.model('User', userSchema);
+```
+
+---
+
+### Schema Data Types Summary
+
+| Type          | Mongoose Type                     | Use Case                           |
+|---------------|-----------------------------------|------------------------------------|
+| String        | `String`                          | Text data                          |
+| Number        | `Number`                          | Integers, decimals                 |
+| Boolean       | `Boolean`                         | True/false values                  |
+| Date          | `Date`                            | Timestamps, dates                  |
+| Array         | `[Type]`                          | Lists of items                     |
+| Object        | `{}`                              | Nested data structures             |
+| ObjectId      | `mongoose.Schema.Types.ObjectId`  | References to other documents      |
+| Mixed         | `mongoose.Schema.Types.Mixed`     | Any type of data                   |
+| Buffer        | `Buffer`                          | Binary data (images, files)        |
+| Decimal128    | `mongoose.Schema.Types.Decimal128`| High precision numbers             |
+| Map           | `Map`                             | Key-value pairs                    |
 
 ---
