@@ -1,27 +1,41 @@
-# Mongoose Controller Cheat Sheet
+# Backend Practice - Comprehensive Cheat Sheet & Documentation
 
-This comprehensive cheat sheet provides common Mongoose operations in controller format, with detailed explanations for each. Use these patterns to handle CRUD and query logic in your Express backend.
+This comprehensive guide covers both the actual backend architecture of this project and general Mongoose/Express patterns. Use this as both project documentation and a reference guide for CRUD operations and backend development.
 
 ---
 
 ## Table of Contents
+
+### 📁 Project Architecture
+- [Project Overview](#project-overview)
+- [Project Structure](#project-structure)
+- [Technology Stack](#technology-stack)
+- [Installation & Setup](#installation--setup)
+- [Environment Variables](#environment-variables)
+- [API Endpoints](#api-endpoints)
+- [Middleware Stack](#middleware-stack)
+- [Security Features](#security-features)
+
+### 🗄️ Mongoose Operations Reference
 - [Create Operations](#create-operations)
 - [Read Operations](#read-operations)
 - [Update Operations](#update-operations)
 - [Delete Operations](#delete-operations)
 - [Query Operations](#query-operations)
 - [Advanced Operations](#advanced-operations)
-- [Summary Table](#summary-table)
+- [Operations Summary Table](#summary-table)
 - [Query Operators Reference](#query-operators-reference)
-- [Best Practices](#best-practices)
-- [Common Patterns](#common-patterns)
+
+### 🛣️ Express Routes Guide
 - [Express Routes Cheat Sheet](#express-routes-cheat-sheet)
-  - [URL Parameters](#url-parameters-reqparams)
-  - [Query Strings](#query-strings-reqquery)
-  - [Request Body](#request-body-reqbody)
-  - [Request Headers](#request-headers-reqheaders)
+  - [URL Parameters (req.params)](#url-parameters-reqparams)
+  - [Query Strings (req.query)](#query-strings-reqquery)
+  - [Request Body (req.body)](#request-body-reqbody)
+  - [Request Headers (req.headers)](#request-headers-reqheaders)
   - [Complete Route Examples](#complete-route-examples)
   - [Route Parameters Summary](#route-parameters-summary)
+
+### 📋 Mongoose Schema Guide
 - [Mongoose Model Schema Cheat Sheet](#mongoose-model-schema-cheat-sheet)
   - [Basic Schema Structure](#basic-schema-structure)
   - [Data Types](#data-types)
@@ -34,6 +48,311 @@ This comprehensive cheat sheet provides common Mongoose operations in controller
   - [Middleware (Hooks)](#middleware-hooks)
   - [Complete Schema Example](#complete-schema-example)
   - [Schema Data Types Summary](#schema-data-types-summary)
+
+### 🔧 Best Practices & Patterns
+- [Best Practices](#best-practices)
+- [Common Patterns](#common-patterns)
+- [Error Handling](#error-handling-patterns)
+- [Authentication & Authorization](#authentication--authorization)
+
+---
+
+## Project Overview
+
+A production-ready Express.js REST API with MongoDB backend featuring comprehensive security, authentication, role-based access control, and advanced middleware implementation.
+
+**Key Features:**
+- ✅ JWT Authentication & Authorization
+- ✅ Role-Based Access Control (RBAC)
+- ✅ Request Validation (express-validator)
+- ✅ Rate Limiting & Speed Control
+- ✅ MongoDB Injection Protection
+- ✅ Security Headers (Helmet)
+- ✅ HTTP Parameter Pollution Prevention
+- ✅ Request Logging
+- ✅ Centralized Error Handling
+- ✅ CORS Configuration
+
+---
+
+## Project Structure
+
+```
+server/
+├── src/
+│   ├── app.js                      # Express app configuration
+│   ├── server.js                   # Server entry point
+│   │
+│   ├── configs/
+│   │   └── mongo.config.js         # MongoDB connection
+│   │
+│   ├── controllers/
+│   │   └── user.controller.js      # User business logic
+│   │
+│   ├── middlewares/
+│   │   ├── index.js                # Middleware exports
+│   │   ├── auth.middleware.js      # JWT authentication
+│   │   ├── role.middleware.js      # Role-based authorization
+│   │   ├── validation.middleware.js # Input validation
+│   │   ├── errorHandler.middleware.js # Error handling
+│   │   ├── loggers.middleware.js   # Request logging
+│   │   ├── rateLimit.middleware.js # Rate limiting
+│   │   └── mongoSanitize.middleware.js # NoSQL injection protection
+│   │
+│   ├── models/
+│   │   └── user.model.js           # User schema & model
+│   │
+│   └── routes/
+│       └── user.route.js           # User API routes
+│
+├── .env                            # Environment variables
+├── package.json                    # Dependencies & scripts
+└── README.md                       # This file
+```
+
+---
+
+## Technology Stack
+
+### Core Dependencies
+- **express** (v5.2.1) - Web framework
+- **mongoose** (v9.0.1) - MongoDB ODM
+- **dotenv** (v17.2.3) - Environment variables
+- **nodemon** (v3.1.11) - Development auto-restart
+
+### Authentication & Security
+- **jsonwebtoken** (v9.0.3) - JWT authentication
+- **bcryptjs** (v3.0.3) - Password hashing
+- **helmet** (v8.1.0) - Security headers
+- **cors** (v2.8.5) - Cross-Origin Resource Sharing
+- **hpp** (v0.2.3) - HTTP Parameter Pollution protection
+
+### Validation & Rate Limiting
+- **express-validator** (v7.3.1) - Request validation
+- **express-rate-limit** (v8.2.1) - Rate limiting
+- **express-slow-down** (v3.0.1) - Speed limiting
+
+---
+
+## Installation & Setup
+
+### Prerequisites
+- Node.js (v14 or higher)
+- MongoDB (local or cloud)
+
+### Steps
+
+1. **Clone and Navigate**
+```bash
+cd server
+```
+
+2. **Install Dependencies**
+```bash
+npm install
+```
+
+3. **Configure Environment**
+Create `.env` file:
+```env
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/mydatabase
+JWT_SECRET=your_super_secret_jwt_key_here
+NODE_ENV=development
+```
+
+4. **Start MongoDB**
+```bash
+# Local MongoDB
+mongod
+
+# Or use MongoDB Atlas cloud connection
+```
+
+5. **Run Server**
+```bash
+# Development (with auto-restart)
+npm run dev
+
+# Production
+npm start
+```
+
+---
+
+## Environment Variables
+
+| Variable      | Description                          | Example                                    |
+|---------------|--------------------------------------|--------------------------------------------|
+| `PORT`        | Server port number                   | `5000`                                     |
+| `MONGO_URI`   | MongoDB connection string            | `mongodb://localhost:27017/mydatabase`     |
+| `JWT_SECRET`  | Secret key for JWT signing           | `your_super_secret_key_here`               |
+| `NODE_ENV`    | Environment mode                     | `development` or `production`              |
+
+---
+
+## API Endpoints
+
+### Base URL
+```
+http://localhost:5000/api
+```
+
+### Public Routes (No Authentication)
+
+| Method | Endpoint           | Description            | Body Required                                                      |
+|--------|--------------------|------------------------|---------------------------------------------------------------------|
+| POST   | `/users/register`  | Register new user      | `firstName, lastName, email, password, age, gender, role?`          |
+| POST   | `/users/login`     | Login user             | `email, password`                                                   |
+
+### Protected Routes (Authentication Required)
+
+| Method | Endpoint           | Description            | Auth | Role  | Body Required                                    |
+|--------|--------------------|------------------------|------|-------|--------------------------------------------------|
+| GET    | `/users/profile`   | Get current user       | ✅   | Any   | -                                                |
+| GET    | `/users`           | Get all users          | ✅   | Admin | -                                                |
+| GET    | `/users/:id`       | Get user by ID         | ✅   | Admin | -                                                |
+| POST   | `/users`           | Create user            | ✅   | Admin | `firstName, lastName, email, password, age, gender, role?` |
+| PUT    | `/users/:id`       | Update user            | ✅   | Admin | `firstName?, lastName?, email?, password?, age?, gender?, role?` |
+| DELETE | `/users/:id`       | Delete user by ID      | ✅   | Admin | -                                                |
+| DELETE | `/users/deleteAllUsers` | Delete all users  | ✅   | Admin | -                                                |
+
+### Authentication Header Format
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+### Example Requests
+
+**Register:**
+```bash
+POST /api/users/register
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@smu.edu.ph",
+  "password": "securePass123",
+  "age": 25,
+  "gender": "male",
+  "role": "staff"
+}
+```
+
+**Login:**
+```bash
+POST /api/users/login
+Content-Type: application/json
+
+{
+  "email": "john.doe@smu.edu.ph",
+  "password": "securePass123"
+}
+```
+
+**Get Profile:**
+```bash
+GET /api/users/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+---
+
+## Middleware Stack
+
+### Order of Execution (in app.js)
+
+1. **Security Middleware**
+   - `helmet()` - Secure HTTP headers
+   - `mongoSanitize` - Prevent MongoDB injection
+   - `hpp()` - Prevent HTTP Parameter Pollution
+
+2. **Global Middleware**
+   - `cors()` - Enable CORS
+   - `express.json()` - Parse JSON bodies
+   - `express.urlencoded()` - Parse URL-encoded bodies
+   - `logger` - Log requests
+
+3. **Rate Limiting**
+   - `limiter` - Request rate limiting
+   - `speedLimiter` - Speed control
+
+4. **Route Handlers**
+   - User routes with authentication & validation
+
+5. **Error Handling**
+   - 404 handler
+   - `errorHandler` - Centralized error handling
+
+### Middleware Details
+
+**auth.middleware.js**
+- Verifies JWT tokens
+- Attaches decoded user to `req.user`
+- Returns 401 for invalid/missing tokens
+
+**role.middleware.js**
+- Checks user role against required role
+- Returns 403 if unauthorized
+- Usage: `checkRole('admin')`
+
+**validation.middleware.js**
+- Validates request data using express-validator
+- Two validators: `validateUser`, `validateRegistration`
+- Returns 400 with validation errors
+
+**rateLimit.middleware.js**
+- `limiter`: 100 requests per 15 minutes
+- `speedLimiter`: Slows down after 50 requests
+
+**mongoSanitize.middleware.js**
+- Sanitizes request data to prevent NoSQL injection
+- Express 5.x compatible implementation
+
+---
+
+## Security Features
+
+### Implemented Security Measures
+
+1. **Authentication**
+   - JWT-based authentication
+   - 7-day token expiration
+   - Password hashing with bcrypt (10 rounds)
+
+2. **Authorization**
+   - Role-based access control (staff/admin)
+   - Protected routes for admin operations
+   - Self-modification protection (can't delete own account)
+
+3. **Input Validation**
+   - Email domain validation (`@smu.edu.ph`)
+   - Name format validation (letters only)
+   - Age range validation (1-500)
+   - Password minimum length (6 characters)
+
+4. **Rate Limiting**
+   - 100 requests per 15 minutes per IP
+   - Speed limiting after 50 requests
+   - Applies to all `/api/*` routes
+
+5. **Injection Protection**
+   - MongoDB injection prevention
+   - Data sanitization middleware
+   - Parameter pollution prevention
+
+6. **HTTP Security**
+   - Helmet.js security headers
+   - CORS configuration
+   - JSON body size limit (10MB)
+
+7. **Password Security**
+   - Bcrypt hashing (10 rounds)
+   - Passwords excluded from query results by default
+   - Password comparison method in model
+
+---
 
 ---
 
