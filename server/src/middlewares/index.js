@@ -4,6 +4,7 @@ const logger = require('./loggers.middleware');
 const { limiter, speedLimiter} = require('./rateLimit.middleware');
 const checkRole = require('./role.middleware');
 const { validateUser, validateRegistration } = require('./validation.middleware');
+const mongoSanitize = require('./mongoSanitize.middleware');
 
 module.exports = {
   auth,
@@ -14,4 +15,5 @@ module.exports = {
   checkRole,
   validateUser,
   validateRegistration,
+  mongoSanitize,
 };

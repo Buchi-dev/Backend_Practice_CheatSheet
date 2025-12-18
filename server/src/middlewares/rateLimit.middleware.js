@@ -17,7 +17,7 @@ const limiter = rateLimit({
 
 const speedLimiter = slowDown({
   windowMs: 15 * 60 * 1000,
-  delayAfter: 50, // Allow 50 requests per 15 minutes, then...
+  delayAfter: 25, // Allow 25 requests per 15 minutes, then...
   delayMs: () => 500 // Always add 500ms delay per request above 50 (new v2 behavior)
 });
 
