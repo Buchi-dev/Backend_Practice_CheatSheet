@@ -12,13 +12,15 @@ require('dotenv').config();
 const app = require("./app");
 const connectDB = require("./configs/mongo.config");
 
-// Connect to MongoDB
-connectDB();
-
-// Set port from environment or default to 5000
 const PORT = process.env.PORT || 5000;
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to connect to MongoDB:", err);
+    process.exit(1);
+  });
