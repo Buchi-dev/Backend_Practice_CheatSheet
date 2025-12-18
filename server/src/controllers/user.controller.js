@@ -8,7 +8,16 @@ const jwt = require("jsonwebtoken");
 // Register new user
 const register = async (req, res, next) => {
   try {
-    const { firstName, lastName, middleInitial, email, age, gender, password, role } = req.body;
+    const {
+      firstName,
+      lastName,
+      middleInitial,
+      email,
+      age,
+      gender,
+      password,
+      role,
+    } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -119,7 +128,7 @@ const getProfile = async (req, res, next) => {
   try {
     // req.user is set by auth middleware
     const user = await User.findById(req.user.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -174,6 +183,14 @@ const getUserById = async (req, res, next) => {
 };
 const deleteUser = async (req, res, next) => {
   try {
+    // Prevent admins from deleting their own account
+    if (req.user.id === req.params.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot delete your own profile",
+      });
+    }
+
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user)
       return res
@@ -196,18 +213,26 @@ const deleteAllUsers = async (req, res, next) => {
     next(error);
   }
 };
-
 const updateUser = async (req, res, next) => {
   try {
-    const users = await User.findByIdAndUpdate(req.params.id, req.body, {
+    // Prevent users from updating their own role (security measure)
+    if (req.body.role && req.user.id === req.params.id)
+      return res.status(403).json({
+        success: false,
+        message: "You cannot change your own role",
+      });
+
+    const user = await User.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     });
-    if (!users)
+
+    if (!user)
       return res
         .status(404)
-        .json({ success: false, message: "Users Not Found" });
-    res.status(200).json({ success: true, count: users.length, data: users });
+        .json({ success: false, message: "User Not Found" });
+
+    res.status(200).json({ success: true, data: user });
   } catch (error) {
     next(error);
   }

@@ -12,7 +12,7 @@ const cors = require("cors");
 
 const userRoutes = require("./routes/user.route");
 
-const { logger, limiter, errorHandler } = require("./middlewares");
+const { logger, limiter, speedLimiter, errorHandler } = require("./middlewares");
 
 const app = express();
 
@@ -22,7 +22,7 @@ app.use(express.json()); // Parse JSON bodies
 app.use(logger); // Log every request
 
 // 2. Mount Routes
-app.use("/api/", limiter);
+app.use("/api/", limiter, speedLimiter);
 app.use("/api/users", userRoutes);
 
 // 3. Root route (optional)
