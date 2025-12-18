@@ -7,33 +7,35 @@
  * - Handles 404 and error responses
  */
 
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
 
-const userRoutes = require('./routes/user.route');
+const userRoutes = require("./routes/user.route");
+
+const { logger, limiter, errorHandler } = require("./middlewares");
 
 const app = express();
 
-// Middleware
+// 1. Global Middleware
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Parse JSON bodies
+app.use(logger); // Log every request
 
-// Mount routes
-app.use('/api/users', userRoutes);
+// 2. Mount Routes
+app.use("/api/", limiter);
+app.use("/api/users", userRoutes);
 
-// Root route (optional)
-app.get('/', (req, res) => {
-  res.send('API is running!');
+// 3. Root route (optional)
+app.get("/", (req, res) => {
+  res.send("API is running!");
 });
 
-// 404 handler
+// 4. 404 Handler (for unmatched routes)
 app.use((req, res, next) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+  res.status(404).json({ success: false, message: "Route not found" });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  res.status(500).json({ success: false, message: err.message });
-});
+// 5. Error Handler (must be last)
+app.use(errorHandler);
 
 module.exports = app;

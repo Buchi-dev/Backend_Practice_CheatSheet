@@ -6,9 +6,8 @@
  * - Starts the Express server
  */
 
-const mongoose = require('mongoose');
-const app = require('./app');
-const connectDB = require('./configs/mongo.config');
+const app = require("./app");
+const connectDB = require("./configs/mongo.config");
 
 // Connect to MongoDB
 connectDB();
