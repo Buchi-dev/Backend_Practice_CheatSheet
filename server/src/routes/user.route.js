@@ -2,15 +2,41 @@ const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/user.controller");
 
-const { checkRole, validateUser } = require("../middlewares");
+const { auth, checkRole, validateUser, validateRegistration } = require("../middlewares");
 
-router.delete("/deleteAllUsers", userController.deleteAllUsers);
+// ============================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================
 
-router.get("/", userController.getAllUsers);
-// router.post('/', validateUser, checkRole('admin'), userController.createUser); ---------HAVE RBAC
-router.post("/", validateUser, userController.createUser);
-router.get("/:id", userController.getUserById);
-router.put("/:id", validateUser, userController.updateUser); // VALIDATE USER DATA ON UPDATE
-router.delete("/:id", userController.deleteUser);
+// Register new user
+router.post("/register", validateRegistration, userController.register);
+
+// Login user
+router.post("/login", userController.login);
+
+// ============================================
+// PROTECTED ROUTES (Authentication required)
+// ============================================
+
+// Get current user profile (any authenticated user)
+router.get("/profile", auth, userController.getProfile);
+
+// Get all users (admin only)
+router.get("/", auth, checkRole("admin"), userController.getAllUsers);
+
+// Get user by ID (admin only)
+router.get("/:id", auth, checkRole("admin"), userController.getUserById);
+
+// Create user (admin only) - with validation
+router.post("/", auth, checkRole("admin"), validateUser, userController.createUser);
+
+// Update user (admin only) - with validation
+router.put("/:id", auth, checkRole("admin"), validateUser, userController.updateUser);
+
+// Delete user by ID (admin only)
+router.delete("/:id", auth, checkRole("admin"), userController.deleteUser);
+
+// Delete all users (admin only) - dangerous operation
+router.delete("/deleteAllUsers", auth, checkRole("admin"), userController.deleteAllUsers);
 
 module.exports = router;

@@ -38,7 +38,7 @@ const connectDB = async () => {
     // process.env.MONGO_URI should be set in .env file
     // Falls back to local MongoDB if not set
     const conn = await mongoose.connect(
-      'mongodb+srv://hedtjyuzon_db_user:3iTnNgJbnjPF27nv@cluster0.qidesdz.mongodb.net/' || 'mongodb://localhost:27017/mydatabase'
+      process.env.MONGO_URI || 'mongodb://localhost:27017/mydatabase'
     );
     
     // Log successful connection with host information
