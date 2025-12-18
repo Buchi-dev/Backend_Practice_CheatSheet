@@ -356,6 +356,1306 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
+## 🏗️ How to Build Backend Components
+
+This section provides step-by-step guides for building each component of your backend, organized by folder structure. Each guide includes patterns from this project and general best practices.
+
+---
+
+## 📂 Folder 1: Models (Database Schemas)
+
+Models define the structure of your data and handle database interactions.
+
+### 📋 Purpose
+- Define data structure and validation rules
+- Handle data transformation (hashing, formatting)
+- Provide reusable methods for data operations
+- Enforce business logic at the database level
+
+### 🔨 How to Build a Model
+
+**Step 1: Create the Schema**
+
+```javascript
+const mongoose = require('mongoose');
+
+const UserSchema = new mongoose.Schema({
+  // Define fields here
+}, {
+  timestamps: true  // Adds createdAt and updatedAt
+});
+```
+
+**Step 2: Add Field Definitions with Validations**
+
+```javascript
+const UserSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    required: true,        // Field is mandatory
+    trim: true,            // Remove whitespace
+    minlength: 2,         // Minimum length
+    maxlength: 30,        // Maximum length
+    match: /^[A-Za-z ]+$/ // Regex validation
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,          // No duplicates
+    lowercase: true,       // Convert to lowercase
+    match: /^\w+@[a-zA-Z_]+?\.[a-zA-Z]{2,3}$/
+  },
+  age: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 120
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin', 'staff'], // Only these values
+    default: 'user'
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6,
+    select: false         // Don't include in queries by default
+  }
+}, {
+  timestamps: true
+});
+```
+
+**Step 3: Add Pre-Save Middleware (Hooks)**
+
+```javascript
+// Hash password before saving
+UserSchema.pre('save', async function(next) {
+  // Only hash if password is new or modified
+  if (!this.isModified('password')) return next();
+  
+  const bcrypt = require('bcryptjs');
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+```
+
+**Step 4: Add Instance Methods**
+
+```javascript
+// Methods available on individual documents
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  const bcrypt = require('bcryptjs');
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+UserSchema.methods.getPublicProfile = function() {
+  return {
+    id: this._id,
+    name: this.name,
+    email: this.email,
+    role: this.role
+  };
+};
+```
+
+**Step 5: Add Static Methods**
+
+```javascript
+// Methods available on the Model
+UserSchema.statics.findByEmail = function(email) {
+  return this.findOne({ email });
+};
+
+UserSchema.statics.findActive = function() {
+  return this.find({ isActive: true });
+};
+```
+
+**Step 6: Transform JSON Output**
+
+```javascript
+UserSchema.methods.toJSON = function() {
+  const obj = this.toObject();
+  delete obj.password;  // Remove sensitive data
+  delete obj.__v;       // Remove version key
+  return obj;
+};
+```
+
+**Step 7: Export Model**
+
+```javascript
+module.exports = mongoose.model('User', UserSchema);
+```
+
+### 📝 Complete Model Example (From This Project)
+
+```javascript
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+
+const UserSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    required: true,
+    trim: true,
+    match: /^[A-Za-z ]+$/,
+    minlength: 2,
+    maxlength: 30
+  },
+  lastName: {
+    type: String,
+    required: true,
+    trim: true,
+    match: /^[A-Za-z]+$/,
+    minlength: 2,
+    maxlength: 30
+  },
+  email: {
+    type: String,
+    required: true,
+    trim: true,
+    match: /^[\w.-]+@smu\.edu\.ph$/,
+    unique: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6,
+    select: false
+  },
+  age: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 500
+  },
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'rather not say'],
+    required: true
+  },
+  role: {
+    type: String,
+    enum: ['staff', 'admin'],
+    default: 'staff'
+  }
+}, {
+  timestamps: true
+});
+
+// Hash password before saving
+UserSchema.pre('save', async function() {
+  if (!this.isModified('password')) return;
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Compare password method
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Remove password from JSON
+UserSchema.methods.toJSON = function() {
+  const obj = this.toObject();
+  delete obj.password;
+  return obj;
+};
+
+module.exports = mongoose.model('User', UserSchema);
+```
+
+### 🎯 Model Best Practices
+✅ Always use `required: true` for mandatory fields
+✅ Use `trim: true` to remove whitespace
+✅ Add validation rules at schema level
+✅ Use `select: false` for sensitive fields
+✅ Hash passwords in pre-save middleware
+✅ Create reusable methods for common operations
+✅ Use `timestamps: true` for automatic dates
+✅ Remove sensitive data from JSON responses
+
+---
+
+## 📂 Folder 2: Controllers (Business Logic)
+
+Controllers handle the business logic and data processing for your routes.
+
+### 📋 Purpose
+- Process incoming requests
+- Interact with models (database)
+- Handle errors and validation
+- Send responses back to client
+
+### 🔨 How to Build a Controller
+
+**Basic Controller Structure:**
+
+```javascript
+const Model = require('../models/model.name');
+
+const controllerName = async (req, res, next) => {
+  try {
+    // 1. Extract data from request
+    const data = req.body;
+    const id = req.params.id;
+    const query = req.query;
+    
+    // 2. Validate data (optional, if not using middleware)
+    if (!data.field) {
+      return res.status(400).json({
+        success: false,
+        message: 'Field is required'
+      });
+    }
+    
+    // 3. Perform database operation
+    const result = await Model.create(data);
+    
+    // 4. Send response
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    // 5. Handle errors
+    next(error);  // Pass to error handler
+  }
+};
+
+module.exports = controllerName;
+```
+
+### 🔐 Authentication Controllers
+
+**Register Controller:**
+```javascript
+const register = async (req, res, next) => {
+  try {
+    const { firstName, lastName, email, password, age, gender, role } = req.body;
+    
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists'
+      });
+    }
+    
+    // Create user (password hashed automatically by model)
+    const user = await User.create({
+      firstName, lastName, email, password, age, gender,
+      role: role || 'staff'
+    });
+    
+    // Generate JWT token
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: { user, token }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+**Login Controller:**
+```javascript
+const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password required'
+      });
+    }
+    
+    // Find user (include password field)
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    // Check password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    // Generate token
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: { user, token }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+**Get Profile Controller:**
+```javascript
+const getProfile = async (req, res, next) => {
+  try {
+    // req.user is set by auth middleware
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+### 📊 CRUD Controllers
+
+**Create (POST):**
+```javascript
+const createItem = async (req, res, next) => {
+  try {
+    const item = await Model.create(req.body);
+    
+    res.status(201).json({
+      success: true,
+      data: item
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+**Read All (GET):**
+```javascript
+const getAllItems = async (req, res, next) => {
+  try {
+    const items = await Model.find();
+    
+    res.status(200).json({
+      success: true,
+      count: items.length,
+      data: items
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+**Read One (GET):**
+```javascript
+const getItemById = async (req, res, next) => {
+  try {
+    const item = await Model.findById(req.params.id);
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: item
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+**Update (PUT/PATCH):**
+```javascript
+const updateItem = async (req, res, next) => {
+  try {
+    const item = await Model.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,           // Return updated document
+        runValidators: true  // Run schema validators
+      }
+    );
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: item
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+**Delete (DELETE):**
+```javascript
+const deleteItem = async (req, res, next) => {
+  try {
+    const item = await Model.findByIdAndDelete(req.params.id);
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Item deleted',
+      data: item
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+### 🎯 Controller Best Practices
+✅ Always use try-catch blocks
+✅ Use next(error) to pass errors to error handler
+✅ Return early for validation errors
+✅ Use descriptive variable names
+✅ Check if resource exists before operations
+✅ Use appropriate HTTP status codes
+✅ Always return consistent JSON structure
+✅ Pass errors to centralized error handler
+
+### 📤 Exporting Controllers
+
+```javascript
+module.exports = {
+  // Auth controllers
+  register,
+  login,
+  getProfile,
+  // CRUD controllers
+  getAllItems,
+  getItemById,
+  createItem,
+  updateItem,
+  deleteItem
+};
+```
+
+---
+
+## 📂 Folder 3: Routes (API Endpoints)
+
+Routes connect HTTP endpoints to controller functions and apply middleware.
+
+### 📋 Purpose
+- Define API endpoints (URLs)
+- Connect routes to controllers
+- Apply middleware (auth, validation, etc.)
+- Organize routes by resource
+
+### 🔨 How to Build Routes
+
+**Step 1: Create Router**
+
+```javascript
+const express = require('express');
+const router = express.Router();
+const controller = require('../controllers/controller.name');
+const { auth, checkRole, validate } = require('../middlewares');
+```
+
+**Step 2: Define Public Routes**
+
+```javascript
+// Public routes (no authentication)
+router.post('/register', controller.register);
+router.post('/login', controller.login);
+```
+
+**Step 3: Define Protected Routes**
+
+```javascript
+// Protected routes (authentication required)
+router.get('/profile', auth, controller.getProfile);
+```
+
+**Step 4: Define Role-Based Routes**
+
+```javascript
+// Admin only routes
+router.get('/', auth, checkRole('admin'), controller.getAll);
+router.post('/', auth, checkRole('admin'), validate, controller.create);
+router.put('/:id', auth, checkRole('admin'), validate, controller.update);
+router.delete('/:id', auth, checkRole('admin'), controller.delete);
+```
+
+**Step 5: Export Router**
+
+```javascript
+module.exports = router;
+```
+
+### 📝 Complete Routes Example (From This Project)
+
+```javascript
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/user.controller');
+const { auth, checkRole, validateUser, validateRegistration } = require('../middlewares');
+
+// ============================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================
+
+// Register new user
+router.post('/register', validateRegistration, userController.register);
+
+// Login user
+router.post('/login', userController.login);
+
+// ============================================
+// PROTECTED ROUTES (Authentication required)
+// ============================================
+
+// Get current user profile (any authenticated user)
+router.get('/profile', auth, userController.getProfile);
+
+// Get all users (admin only)
+router.get('/', auth, checkRole('admin'), userController.getAllUsers);
+
+// Get user by ID (admin only)
+router.get('/:id', auth, checkRole('admin'), userController.getUserById);
+
+// Create user (admin only) - with validation
+router.post('/', auth, checkRole('admin'), validateUser, userController.createUser);
+
+// Update user (admin only) - with validation
+router.put('/:id', auth, checkRole('admin'), validateUser, userController.updateUser);
+
+// Delete user by ID (admin only)
+router.delete('/:id', auth, checkRole('admin'), userController.deleteUser);
+
+module.exports = router;
+```
+
+### 🛣️ Route Patterns
+
+**REST API Standard:**
+```javascript
+// GET    /api/users       - Get all users
+// GET    /api/users/:id   - Get user by ID
+// POST   /api/users       - Create new user
+// PUT    /api/users/:id   - Update user (full)
+// PATCH  /api/users/:id   - Update user (partial)
+// DELETE /api/users/:id   - Delete user
+```
+
+**Authentication Routes:**
+```javascript
+router.post('/register', controller.register);
+router.post('/login', controller.login);
+router.post('/logout', auth, controller.logout);
+router.post('/forgot-password', controller.forgotPassword);
+router.post('/reset-password/:token', controller.resetPassword);
+router.get('/verify-email/:token', controller.verifyEmail);
+```
+
+**Nested Routes:**
+```javascript
+// Get user's posts: GET /api/users/:userId/posts
+router.get('/:userId/posts', auth, postsController.getUserPosts);
+
+// Create post for user: POST /api/users/:userId/posts
+router.post('/:userId/posts', auth, postsController.createPost);
+```
+
+**Query Parameters:**
+```javascript
+// GET /api/users?page=1&limit=10&sort=name&order=asc
+router.get('/', controller.getAll);
+
+// Controller handles req.query
+const { page, limit, sort, order } = req.query;
+```
+
+### 🔗 Middleware Chain Order
+
+```javascript
+// Correct order: validation → auth → role check → controller
+router.post('/',
+  validateData,      // 1. Validate input
+  auth,              // 2. Authenticate
+  checkRole('admin'), // 3. Check permissions
+  controller.create   // 4. Execute logic
+);
+```
+
+### 🎯 Routes Best Practices
+✅ Group related routes together
+✅ Use descriptive route names
+✅ Apply middleware in correct order
+✅ Use URL parameters for IDs (`:id`)
+✅ Use query strings for filters/pagination
+✅ Follow REST conventions
+✅ Version your API (`/api/v1/users`)
+✅ Comment route sections clearly
+
+---
+
+## 📂 Folder 4: Middlewares (Request Processors)
+
+Middlewares intercept requests before they reach controllers.
+
+### 📋 Purpose
+- Authenticate users
+- Validate input data
+- Log requests
+- Rate limiting
+- Error handling
+- Transform request/response
+
+### 🔨 How to Build Middleware
+
+**Basic Middleware Structure:**
+
+```javascript
+const middlewareName = (req, res, next) => {
+  // 1. Process request
+  // 2. Validate or modify req/res
+  // 3. Call next() to continue, or send response to stop
+  
+  if (condition) {
+    return res.status(400).json({ error: 'Something wrong' });
+  }
+  
+  next(); // Continue to next middleware/controller
+};
+
+module.exports = middlewareName;
+```
+
+### 🔐 Authentication Middleware
+
+```javascript
+// middlewares/auth.middleware.js
+const jwt = require('jsonwebtoken');
+
+const authMiddleware = (req, res, next) => {
+  try {
+    // Get token from Authorization header
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+    
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Attach user to request
+    req.user = decoded;
+    
+    next(); // Continue to next middleware
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
+};
+
+module.exports = authMiddleware;
+```
+
+### 🔒 Role-Based Authorization Middleware
+
+```javascript
+// middlewares/role.middleware.js
+const checkRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated'
+      });
+    }
+    
+    // Check if user has required role
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission'
+      });
+    }
+    
+    next();
+  };
+};
+
+module.exports = checkRole;
+
+// Usage: checkRole('admin'), checkRole('admin', 'moderator')
+```
+
+### ✅ Validation Middleware
+
+```javascript
+// middlewares/validation.middleware.js
+const validateUser = (req, res, next) => {
+  const { firstName, lastName, email, age, gender } = req.body;
+  
+  // Check required fields
+  if (!firstName || !lastName || !email || !age || !gender) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields'
+    });
+  }
+  
+  // Validate name format
+  const nameRegex = /^[A-Za-z ]+$/;
+  if (!nameRegex.test(firstName) || !nameRegex.test(lastName)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Names must contain only letters'
+    });
+  }
+  
+  // Validate email
+  const emailRegex = /^[\w.-]+@smu\.edu\.ph$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid email domain'
+    });
+  }
+  
+  // Validate age range
+  if (age < 1 || age > 500) {
+    return res.status(400).json({
+      success: false,
+      message: 'Age must be between 1 and 500'
+    });
+  }
+  
+  // Validate gender
+  const allowedGenders = ['male', 'female', 'rather not say'];
+  if (!allowedGenders.includes(gender)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid gender'
+    });
+  }
+  
+  next();
+};
+
+module.exports = { validateUser };
+```
+
+### 📝 Logger Middleware
+
+```javascript
+// middlewares/loggers.middleware.js
+const logger = (req, res, next) => {
+  const timestamp = new Date().toISOString();
+  const method = req.method;
+  const url = req.originalUrl;
+  const ip = req.ip;
+  
+  console.log(`[${timestamp}] ${method} ${url} - IP: ${ip}`);
+  
+  next();
+};
+
+module.exports = logger;
+```
+
+### ⚠️ Error Handler Middleware
+
+```javascript
+// middlewares/errorHandler.middleware.js
+const errorHandler = (err, req, res, next) => {
+  console.error(err.stack);
+  
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+  
+  // Mongoose duplicate key error
+  if (err.code === 11000) {
+    return res.status(400).json({
+      success: false,
+      message: 'Duplicate field value'
+    });
+  }
+  
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
+  }
+  
+  // Default error
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error'
+  });
+};
+
+module.exports = errorHandler;
+```
+
+### 🚦 Rate Limiting Middleware
+
+```javascript
+// middlewares/rateLimit.middleware.js
+const rateLimit = require('express-rate-limit');
+const slowDown = require('express-slow-down');
+
+// Limit requests per time window
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,                  // Max 100 requests per window
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many requests, try again later'
+    });
+  }
+});
+
+// Slow down after threshold
+const speedLimiter = slowDown({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  delayAfter: 50,            // Allow 50 requests
+  delayMs: () => 500         // Add 500ms delay after
+});
+
+module.exports = { limiter, speedLimiter };
+```
+
+### 🛡️ MongoDB Sanitization Middleware
+
+```javascript
+// middlewares/mongoSanitize.middleware.js
+const sanitizeData = (data) => {
+  if (typeof data !== 'object' || data === null) return data;
+  
+  const sanitized = Array.isArray(data) ? [] : {};
+  
+  for (const key in data) {
+    // Remove dangerous characters
+    if (key.startsWith('$') || key.includes('.')) {
+      continue;
+    }
+    
+    const value = data[key];
+    
+    if (typeof value === 'object' && value !== null) {
+      sanitized[key] = sanitizeData(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  
+  return sanitized;
+};
+
+const mongoSanitize = (req, res, next) => {
+  if (req.body) req.body = sanitizeData(req.body);
+  if (req.params) req.params = sanitizeData(req.params);
+  next();
+};
+
+module.exports = mongoSanitize;
+```
+
+### 📦 Middleware Index (Export All)
+
+```javascript
+// middlewares/index.js
+const auth = require('./auth.middleware');
+const errorHandler = require('./errorHandler.middleware');
+const logger = require('./loggers.middleware');
+const { limiter, speedLimiter } = require('./rateLimit.middleware');
+const checkRole = require('./role.middleware');
+const { validateUser, validateRegistration } = require('./validation.middleware');
+const mongoSanitize = require('./mongoSanitize.middleware');
+
+module.exports = {
+  auth,
+  errorHandler,
+  logger,
+  limiter,
+  speedLimiter,
+  checkRole,
+  validateUser,
+  validateRegistration,
+  mongoSanitize
+};
+```
+
+### 🎯 Middleware Best Practices
+✅ Always call `next()` or send a response
+✅ Use descriptive error messages
+✅ Handle errors properly
+✅ Keep middleware focused (single responsibility)
+✅ Order matters - auth before role check
+✅ Use middleware factories for configurability
+✅ Log important events
+✅ Export through index.js for clean imports
+
+---
+
+## 📂 Folder 5: Configs (Configuration Files)
+
+Configs centralize environment and external service configurations.
+
+### 📋 Purpose
+- Database connections
+- External service setup
+- Environment-specific settings
+- Reusable configuration logic
+
+### 🔨 How to Build Config Files
+
+### 💾 Database Configuration
+
+```javascript
+// configs/mongo.config.js
+const mongoose = require('mongoose');
+
+/**
+ * Connect to MongoDB Database
+ * Handles connection and error logging
+ */
+const connectDB = async () => {
+  try {
+    // Connect using connection string from environment
+    const conn = await mongoose.connect(
+      process.env.MONGO_URI || 'mongodb://localhost:27017/mydatabase',
+      {
+        // Mongoose 6+ doesn't need these options anymore
+        // useNewUrlParser: true,
+        // useUnifiedTopology: true
+      }
+    );
+    
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    
+    // Optional: Handle connection events
+    mongoose.connection.on('disconnected', () => {
+      console.log('MongoDB disconnected');
+    });
+    
+    mongoose.connection.on('error', (err) => {
+      console.error(`MongoDB error: ${err}`);
+    });
+    
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1); // Exit with failure
+  }
+};
+
+module.exports = connectDB;
+```
+
+### 🔧 JWT Configuration
+
+```javascript
+// configs/jwt.config.js
+module.exports = {
+  secret: process.env.JWT_SECRET || 'default_secret_key',
+  expiresIn: '7d',
+  algorithm: 'HS256',
+  
+  // Generate token
+  generateToken: (payload) => {
+    const jwt = require('jsonwebtoken');
+    return jwt.sign(payload, module.exports.secret, {
+      expiresIn: module.exports.expiresIn
+    });
+  },
+  
+  // Verify token
+  verifyToken: (token) => {
+    const jwt = require('jsonwebtoken');
+    return jwt.verify(token, module.exports.secret);
+  }
+};
+```
+
+### ⚙️ Server Configuration
+
+```javascript
+// configs/server.config.js
+module.exports = {
+  port: process.env.PORT || 5000,
+  env: process.env.NODE_ENV || 'development',
+  corsOrigin: process.env.CORS_ORIGIN || '*',
+  
+  // Rate limiting
+  rateLimit: {
+    windowMs: 15 * 60 * 1000,
+    max: process.env.NODE_ENV === 'production' ? 100 : 1000
+  },
+  
+  // Body parser limits
+  bodyLimit: '10mb',
+  
+  // Logging
+  enableLogging: process.env.NODE_ENV !== 'test'
+};
+```
+
+### 📧 Email Configuration (Example)
+
+```javascript
+// configs/email.config.js
+const nodemailer = require('nodemailer');
+
+const emailConfig = {
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT || 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+};
+
+// Create transporter
+const transporter = nodemailer.createTransporter(emailConfig);
+
+// Send email function
+const sendEmail = async (to, subject, html) => {
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to,
+    subject,
+    html
+  };
+  
+  return await transporter.sendMail(mailOptions);
+};
+
+module.exports = { transporter, sendEmail };
+```
+
+### 🌐 Environment Variables
+
+```javascript
+// configs/env.config.js
+require('dotenv').config();
+
+module.exports = {
+  // Server
+  PORT: process.env.PORT || 5000,
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  
+  // Database
+  MONGO_URI: process.env.MONGO_URI,
+  
+  // JWT
+  JWT_SECRET: process.env.JWT_SECRET,
+  JWT_EXPIRE: process.env.JWT_EXPIRE || '7d',
+  
+  // Email
+  EMAIL_HOST: process.env.EMAIL_HOST,
+  EMAIL_PORT: process.env.EMAIL_PORT,
+  EMAIL_USER: process.env.EMAIL_USER,
+  EMAIL_PASS: process.env.EMAIL_PASS,
+  
+  // AWS (if using)
+  AWS_ACCESS_KEY: process.env.AWS_ACCESS_KEY,
+  AWS_SECRET_KEY: process.env.AWS_SECRET_KEY,
+  AWS_BUCKET: process.env.AWS_BUCKET,
+  
+  // Validation
+  validate() {
+    const required = ['MONGO_URI', 'JWT_SECRET'];
+    const missing = required.filter(key => !this[key]);
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing required env variables: ${missing.join(', ')}`);
+    }
+  }
+};
+```
+
+### 🎯 Config Best Practices
+✅ Use environment variables for sensitive data
+✅ Provide default values for development
+✅ Validate required environment variables
+✅ Keep configs separate from business logic
+✅ Export reusable functions
+✅ Handle connection errors gracefully
+✅ Log connection success/failure
+✅ Use `.env` file for local development
+
+### 📄 .env File Example
+
+```env
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+
+# Database
+MONGO_URI=mongodb://localhost:27017/mydatabase
+# Or MongoDB Atlas:
+# MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/dbname
+
+# JWT
+JWT_SECRET=your_super_secret_jwt_key_here_make_it_long_and_random
+JWT_EXPIRE=7d
+
+# Email (if using)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
+EMAIL_FROM=noreply@yourapp.com
+
+# AWS (if using)
+AWS_ACCESS_KEY=your_access_key
+AWS_SECRET_KEY=your_secret_key
+AWS_BUCKET=your_bucket_name
+```
+
+---
+
+## 🏗️ Complete Project Setup Flow
+
+### Step-by-Step Build Order
+
+**1. Initialize Project**
+```bash
+npm init -y
+npm install express mongoose dotenv bcryptjs jsonwebtoken
+npm install nodemon --save-dev
+```
+
+**2. Create Folder Structure**
+```
+src/
+├── configs/
+├── models/
+├── controllers/
+├── middlewares/
+├── routes/
+├── app.js
+└── server.js
+```
+
+**3. Build in This Order:**
+
+1. **Configs** (Foundation)
+   - `mongo.config.js` - Database connection
+   - Create `.env` file
+
+2. **Models** (Data Layer)
+   - Define schemas with validation
+   - Add methods and hooks
+
+3. **Middlewares** (Processing Layer)
+   - `auth.middleware.js` - Authentication
+   - `role.middleware.js` - Authorization
+   - `validation.middleware.js` - Input validation
+   - `errorHandler.middleware.js` - Error handling
+   - `logger.middleware.js` - Request logging
+   - `index.js` - Export all middleware
+
+4. **Controllers** (Business Logic)
+   - Implement CRUD operations
+   - Handle authentication
+   - Process data
+
+5. **Routes** (API Layer)
+   - Define endpoints
+   - Connect to controllers
+   - Apply middleware
+
+6. **App Setup** (Application)
+   - `app.js` - Configure Express
+   - `server.js` - Start server
+
+### 🎯 Testing Your Backend
+
+**Test with cURL:**
+```bash
+# Register
+curl -X POST http://localhost:5000/api/users/register \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"John","lastName":"Doe","email":"john@smu.edu.ph","password":"123456","age":25,"gender":"male"}'
+
+# Login
+curl -X POST http://localhost:5000/api/users/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"john@smu.edu.ph","password":"123456"}'
+
+# Get Profile (with token)
+curl -X GET http://localhost:5000/api/users/profile \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+---
+
 ## Create Operations
 
 ### Create (Insert One)
